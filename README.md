@@ -1,8 +1,9 @@
 ## tl;dr
 
-You want to un-remove your removed files? Now you can! Use this undo-able and perfectly POSIX unsupported extension of `rm`.
+You want to un-remove your removed files? Now you can! Use this undo-able and perfectly POSIX-unspecified extension of `rm`.
 
 Call it Better RM, Super RM, NextGen RM, Extended RM or whatever.
+
 
 ## Why?
 
@@ -25,7 +26,7 @@ This wrapper `rm` copies (and `rmm` moves) the removed files into a temporary tr
 The behaviour of the wrapper should be identical to `rm` (unless the DEBUG mechanism is used). I defined `delete` as a more obvious alias to the original `rm`.
 
 It is ridiculously large and complex. I took far too much time to write this in Bash (for Bash reasons).
-And performance might vary (undoing is probably slower, painfully slow to be honest).
+And performance might vary (undoing is probably slower). (So painfully slow to be honest that you rather want to clone your github repo again than un-removing it from the trash.)
 It should be competent enough to undo removals in reversed removal order, caching arbitrary many recently removed versions.
 It does not store any extra information so the behaviour is that recovered directories will recover the latest version of every original filesystem path inside.
 
