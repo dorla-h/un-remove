@@ -114,14 +114,7 @@ declare -A importantDirectories=(
 
 alias rmm="rm -m"
 
-trash-rm() {
-	local files=()
-	for arg do
-		files+=("$(get-trash-path "$arg")")
-	done
-	undo-rm --delete -f "${files[@]}"
-}
-
+alias trash-rm="undo-rm --delete -f"
 
 path-exists() {
 	ls "$1" &>/dev/null    # fixed bug: [ -e "…"] does not return true for (broken) links
