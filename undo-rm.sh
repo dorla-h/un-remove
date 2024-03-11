@@ -190,7 +190,11 @@ rm() {(
 	done
 	shopt -u nullglob
 
-	local currentDate=$(/usr/bin/date +%s)  # seconds since the epoch
+	debug-print() {
+		[ -n "${DEBUG+y}" ] && /bin/echo $'\n'"$*" >&2
+	}
+
+	local currentDate="$(/usr/bin/date +%s)"  # seconds since the epoch
 	# %X = time of file access in seconds since the epoch
 	# This time is also updated when using 'rm' and can be used for the check.
 	remove-if-stale() {
@@ -199,6 +203,8 @@ rm() {(
 			/usr/bin/rm -r "$oldFile";
 		fi
 	}
+
+	debug-print "sanity-check removed files and trash locations …"
 
 	# create a mapping between files and trash directories
 	declare -A filesByTrashDir
@@ -222,7 +228,7 @@ rm() {(
 
 		if [[ "$file" = "$trashDir"/* ]] \
 			&& [ -z "${isForcing}" ] \
-			&& read -r -p "“$file” is in the trash, delete it entirely? [y/N] " choice \
+			&& read -r -p "“$file” is a trash location, delete it entirely? [y/N] " choice \
 			&& [[ "$choice" != [yY] ]]
 		then
 			continue
@@ -265,6 +271,9 @@ rm() {(
 		return 0
 	fi
 
+
+	debug-print "check issued directories for warnings …"
+
 	# warn if users try to remove "important directories"
 	# lesson: unsetting the associative array is not seen outside a subshell env `( … )`
 	# for some reason, echoing will cause an error that the contents of the associative array could not be used as variable; related to `read`?
@@ -305,6 +314,8 @@ rm() {(
 		END
 		return 0
 	fi
+
+	debug-print "save removed files to trashes …"
 
 	# cp removed files to an intermediate location or move them to destination
 	for trashDir in "${!filesByTrashDir[@]}"; do
@@ -359,8 +370,14 @@ rm() {(
 	fi
 
 	if [ -z "$isMoving" ]; then
+
+		debug-print "invoke /usr/bin/rm …"
+
 		# do the remove action
 		eval "$debugCommand /usr/bin/rm \"\${options[@]}\" -- ${filesByTrashDir[@]}"
+
+
+		debug-print "moving trash files to final location…"
 
 		# the return status of rm is not clear about which files are deleted, therefore "backup" all of them redundantly
 		for trashDir in "${!filesByTrashDir[@]}"; do
@@ -547,35 +564,33 @@ undo-rm() {(
 		local fileInTrash="$1"
 		local mountpoint="$(get-mountpoint "$fileInTrash")"
 		local trashDir="${mountpoint%/}/${TMP_TRASH}"
-		local destinationPath="$(strip-suffixes "$fileInTrash")"
-		local targetBasename="$(/usr/bin/basename "$destinationPath")"
-		local destination=${destinationDir:+"-t$destinationDir"}
-
-
-		if [ "$DEBUG" = 5 ]; then
-			cat <<-END  >&2
-				($DEBUG)
-				== ${targetBasename@Q} ==
-				fileInTrash: ${fileInTrash@Q}
-				mountpoint: ${mountpoint@Q}
-				trashDir: ${trashDir@Q}
-				targetBasename: ${targetBasename@Q}
-				destinationPath: ${destinationPath@Q}
-				destinationDir: ${destinationDir@Q}
-			END
-		fi
 
 		if
 			if [ -z "$isDeleting" ]; then
+				local destinationPath="$(strip-suffixes "$fileInTrash")"
+				local targetBasename="$(/usr/bin/basename "$destinationPath")"
+				local destination=${destinationDir:+"-t$destinationDir"}
 				destination=${destination:-"$(--mk-destination-dir "$destinationPath" "$trashDir" "$mountpoint" 2>/dev/null)/${targetBasename}"}
+
+				if [ "$DEBUG" = 5 ]; then
+					cat <<-END  >&2
+						($DEBUG)
+						== ${targetBasename@Q} ==
+						fileInTrash: ${fileInTrash@Q}
+						mountpoint: ${mountpoint@Q}
+						trashDir: ${trashDir@Q}
+						targetBasename: ${targetBasename@Q}
+						destinationPath: ${destinationPath@Q}
+						destinationDir: ${destinationDir@Q}
+						destination: ${destination@Q}
+					END
+				fi
+
 				! ${DEBUG+"/bin/echo" "preview:"} /usr/bin/mv ${isVerbose:+"-v"} ${isForcing:+"-f"} --backup=numbered "${fileInTrash}" "${destination}"
 			else
 				! ${DEBUG+"/bin/echo" "preview:"} /usr/bin/rm ${isVerbose:+"-v"} -r ${isForcing:+"-f"} "${fileInTrash}"
 			fi
-		then (( errors++ )); return 0
-		fi
-
-		if [ "$DEBUG" = 5 ]; then /bin/echo "destination: ${destination@Q}" >&2; fi
+		then (( errors++ )); return 0; fi
 
 		# remove directories that have become empty
 		parent="$(/usr/bin/dirname "$fileInTrash")"
