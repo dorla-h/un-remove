@@ -199,9 +199,11 @@ rm() {(
 	# This time is also updated when using 'rm' and can be used for the check.
 	remove-if-stale() {
 		local oldFile="$1"
-		if (( "${currentDate}" - "$(/usr/bin/stat --printf="%X" "$oldFile")" > "$fileRetentionDuration" )); then
-			/usr/bin/rm -r "$oldFile";
-		fi
+		local lastAccessTime="$(/usr/bin/stat --printf="%X" "$oldFile")"
+
+		(( "${currentDate}" - "$lastAccessTime" > "$fileRetentionDuration" )) \
+		&& ${debugCommand} /usr/bin/rm -rf "$oldFile"
+		return $?
 	}
 
 	debug-print "sanity-check removed files and trash locations …"
