@@ -121,6 +121,24 @@ path-exists() {
 	return $?
 }
 
+# remove the empty directories inside a filesystem subtree.
+# The subtree's root is the first argument
+# The branches are selected by leaf directories which are specified as additional arguments
+remove-empty-branch() {
+	lowerLimit="${1%/}"
+	shift
+	for leafDir do
+		leafDir="${leafDir%/}"
+		if [[ "${leafDir}/" != "${lowerLimit}/"?* ]]; then continue; fi
+
+		until [[ "${lowerLimit}/" = "${leafDir}/"* ]] \
+			|| ! /usr/bin/rmdir "$leafDir" &>/dev/null
+		do
+			leafDir="$(/usr/bin/dirname "$leafDir")"
+		done
+	done
+}
+
 # The idea is to cp files to a temporary trash location before being deleted with `rm`.
 # It copies all (valid and confirmed) input files and will only keep those copies of actually removed items.
 # This is a disadvantage if you want to avoid writes to a device. It's slow too and it will lose it's original birth time.
@@ -236,12 +254,6 @@ rm() {(
 			continue
 		fi
 
-		# delete too old files
-		eval "local dirs=($(qfind "${trashDir}/" -mindepth 1 -type d 2>/dev/null))"
-		for dir in "${dirs[@]}"; do
-			remove-if-stale "$dir" 2>/dev/null
-		done
-
 		filesByTrashDir["$trashDir"]+="${file@Q} ";  # will need `eval` later, comparable to a spread operator
 	done
 
@@ -273,6 +285,18 @@ rm() {(
 		return 0
 	fi
 
+	# delete too old files
+	for trashDir in "${!filesByTrashDir[@]}"; do
+		debug-print "  · remove stale directories in ${trashDir@Q}"
+
+		declare -A leafParents
+		eval "local dirs=($(qfind-leaves "${trashDir}/"* 2>/dev/null))"
+		for dir in "${dirs[@]}"; do
+			remove-if-stale "$dir" \
+			&& leafParents["$(/usr/bin/dirname "$dir")"]=
+		done
+		remove-empty-branch "$trashDir" "${!leafParents[@]}}"
+	done
 
 	debug-print "check issued directories for warnings …"
 
@@ -384,12 +408,12 @@ rm() {(
 		# the return status of rm is not clear about which files are deleted, therefore "backup" all of them redundantly
 		for trashDir in "${!filesByTrashDir[@]}"; do
 			local tmpDir="${trashDir}/.tmp"
+			local mountpoint="$(--mountpoint-from-trashDir "$trashDir")"
 
 			# based on https://stackoverflow.com/questions/1574403/list-all-leaf-subdirectories-in-linux
 			eval "local tmpFiles=($(qfind-leaves "$tmpDir" 2>/dev/null))"
 			# move trash contents to final destination, if the original file path is gone
 			for file in "${tmpFiles[@]}"; do
-				local mountpoint="$(--mountpoint-from-trashDir "$trashDir")"
 				local realFile="${file/#"${tmpDir}"/"${mountpoint}"}"
 				if ! path-exists "$realFile" || [ -n "${DEBUG+y}" ]; then
 					${debugCommand} /usr/bin/mv --backup=numbered ${isMoving:+"--no-copy"} -f -t "$(--mk-destination-dir "$file" "${tmpDir}" "$trashDir" 2>/dev/null)" -- "${file}"  2>/dev/null
@@ -596,12 +620,7 @@ undo-rm() {(
 
 		# remove directories that have become empty
 		parent="$(/usr/bin/dirname "$fileInTrash")"
-		until [[ "$trashDir" = "$parent"* ]] \
-			|| ! /usr/bin/rmdir "$parent" &>/dev/null
-		do
-			parent="$(/usr/bin/dirname "$parent")"
-		done
-		return 0
+		remove-empty-branch "$trashDir" "$parent"
 	}
 
 	# I could not get `find` to use defined functions or array variable
