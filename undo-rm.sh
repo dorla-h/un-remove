@@ -119,7 +119,7 @@ trash-rm() {
 	for arg do
 		files+=("$(get-trash-path "$arg")")
 	done
-	${DEBUG+"/bin/echo" "preview:"} undo-rm --delete -f "${files[@]}"
+	undo-rm --delete -f "${files[@]}"
 }
 
 
@@ -626,7 +626,7 @@ undo-rm() {(
 	}
 
 	# parse arguments into options and files
-	declare -a list=()
+	local files=()
 	local -i isOptionEnabled=1
 	local -i isDestinationDir=0
 	for arg do
