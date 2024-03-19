@@ -1,4 +1,4 @@
-alias delete="/usr/bin/rm"
+delete() { /usr/bin/rm "$@"; }
 
 # based on https://stackoverflow.com/a/78094638
 # only disadvantage: the interaction is slow, it first needs to process all of `find` before code can proceed
@@ -112,9 +112,9 @@ declare -A importantDirectories=(
 	["$HOME/.local/bin"]=  # local executables could be here
 )
 
-alias rmm="rm -m"
+rmm() { rm -m "$@"; }
 
-alias trash-rm="undo-rm --delete -f"
+trash-rm() { undo-rm --delete -f "$@"; }
 
 path-exists() {
 	ls "$1" &>/dev/null    # fixed bug: [ -e "…"] does not return true for (broken) links
@@ -668,6 +668,8 @@ undo-rm() {(
 				"" | -h | --help ) cat <<-"END" >&2
 						usage: undo-rm <options|files> [-- <files>]
 
+						Recovers a temporary trash file (must match the original file path of the removed file).
+
 						options:
 							-h, --help : prints this message
 							--test     : dry run, testing. Does not move files from trash.
@@ -686,7 +688,7 @@ undo-rm() {(
 						Trash directories are created at the root of partitions and files will be found in the closest
 						trash directory (to avoid moving files between filesystems).
 
-						Keep in mind that trash files will be cleant up when they reach a specific age.
+						Keep in mind that temporary trash files will be cleant up after they reached a specific age.
 						The cleanup is triggered by new 'rm' calls.
 						This facility is not supposed to be a backup functionality. It can only temporarily recover
 						files removed with (the modified) 'rm' but not for example files deleted with 'rsync'.
